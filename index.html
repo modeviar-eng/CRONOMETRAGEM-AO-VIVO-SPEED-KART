@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KartTiming - Espectador</title>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #121212; --bg-panel: #1e1e1e; --primary: #00e676;
+            --secondary: #2979ff; --danger: #ff1744; --warning: #ffea00;
+            --text-main: #ffffff; --text-muted: #b0b0b0;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Exo 2', sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 80px; background-color: #000; display: flex; flex-direction: column; align-items: center; padding-top: 20px; border-right: 1px solid #333; transition: width 0.3s; z-index: 10; flex-shrink: 0; }
+        .sidebar:hover { width: 200px; }
+        .nav-btn { background: none; border: none; color: var(--text-muted); width: 100%; padding: 15px; text-align: left; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; gap: 15px; transition: 0.2s; overflow: hidden; white-space: nowrap; }
+        .nav-btn:hover, .nav-btn.active { color: var(--primary); background-color: rgba(0, 230, 118, 0.1); border-left: 3px solid var(--primary); }
+        
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
+        .tab-content { display: none; padding-bottom: 80px; } .tab-content.active { display: block; }
+        
+        .glass-panel { background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
+        
+        #liveTimer { font-family: 'Roboto Mono', monospace; font-size: 6rem; text-align: center; text-shadow: 0 0 15px var(--primary); margin: 10px 0 10px 0; line-height: 1; color: white; transition: color 0.3s; }
+        .timer-stopped { color: #555 !important; text-shadow: none !important; }
+
+        .best-lap-header { text-align: center; background: rgba(0, 230, 118, 0.1); border: 1px solid var(--primary); border-radius: 8px; padding: 10px; margin-bottom: 20px; color: var(--primary); font-weight: bold; }
+
+        .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
+        
+        .live-table th { background: var(--primary); color: black; font-weight: bold; text-align: left; padding: 12px 10px; }
+        .live-table td { padding: 10px; border-bottom: 1px solid #333; background: var(--bg-panel); }
+        .live-table tr:nth-child(even) td { background-color: #252525; }
+        
+        .legend { margin-top: 20px; font-size: 10px; color: #aaa; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; border-top: 1px solid #333; padding-top: 10px; }
+
+        .result-item { background: var(--bg-panel); padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-left: 4px solid transparent; transition: 0.2s; }
+        .result-item:hover { border-left-color: var(--primary); background: #2a2a2a; }
+        
+        #resultViewPanel { display: none; }
+        #resultViewPanel.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        input, button.btn-search { padding: 12px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; }
+        button.btn-search { background: var(--primary); color: black; font-weight: bold; cursor: pointer; border: none; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: 100vh; }
+            .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 0; border-right: none; border-bottom: 1px solid #333; }
+            .sidebar:hover { width: 100%; }
+            .nav-btn { width: auto; padding: 8px 15px; border-left: none; border-bottom: 3px solid transparent; font-size: 0.9rem; flex-direction: column; gap: 5px; }
+            .nav-btn.active { background: transparent; border-left: none; border-bottom: 3px solid var(--primary); color: var(--primary); }
+            #liveTimer { font-size: 18vw; margin: 10px 0; }
+            .legend { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <button class="nav-btn active" onclick="switchTab('live')"><span>📺 AO VIVO</span></button>
+    <button class="nav-btn" onclick="switchTab('results')"><span>🏆 RESULTADOS</span></button>
+</nav>
+
+<div class="main-content">
+    <div id="tab-live" class="tab-content active">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom:10px; margin-bottom:20px;">
+            <h2 style="margin:0; color:var(--primary)" id="liveRaceTitle">AGUARDANDO...</h2>
+            <div style="text-align:right; font-size:0.9rem; color:#aaa" id="liveCircuitInfo"></div>
+        </div>
+
+        <div id="liveBestLap" class="best-lap-header">Melhor Volta da Corrida: --:--.--- (---)</div>
+        
+        <div id="liveTimer" class="timer-stopped">00:00.000</div>
+
+        <div class="table-container">
+            <table class="live-table">
+                <thead>
+                    <tr><th>POS</th><th>PILOTO</th><th>MV</th><th>TMV</th><th>TT</th><th>DL</th><th>DA</th><th>TV</th><th>VM</th></tr>
+                </thead>
+                <tbody id="liveViewBody">
+                    <tr><td colspan="9" style="text-align:center; padding:20px;">Aguardando dados da cronometragem...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="legend">
+            <span><b>POS:</b> Posição</span><span><b>MV:</b> Volta da Melhor</span><span><b>TMV:</b> Tempo Melhor Volta</span>
+            <span><b>TT:</b> Tempo Total</span><span><b>DL:</b> Dif. Lider</span><span><b>DA:</b> Dif. Anterior</span>
+            <span><b>TV:</b> Total Voltas</span><span><b>VM:</b> Velocidade Média</span>
+        </div>
+    </div>
+
+    <div id="tab-results" class="tab-content">
+        <div id="resultsListPanel">
+            <h2>Pesquisar Bateria</h2>
+            <div class="glass-panel">
+                <p style="margin-top:0; color:#aaa; font-size:0.9rem;">Digite o nome do Responsável pela corrida para ver os resultados:</p>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="searchResponsible" placeholder="Nome do Responsável..." style="flex:1;">
+                    <button class="btn-search" onclick="loadHistory()">BUSCAR</button>
+                </div>
+            </div>
+            <div id="historyListContainer"></div>
+        </div>
+
+        <div id="resultViewPanel">
+            <button style="background:#333; color:white; width:100%; margin-bottom:20px; padding:10px; border:none; border-radius:5px; cursor:pointer;" onclick="closeResultView()">← Voltar para Busca</button>
+            
+            <div id="shareableResultClone" style="background:#121212; padding:20px; border: 3px solid var(--primary); border-radius:10px;">
+                <h1 id="resRaceName" style="text-align:center; color:var(--primary); margin-top:0;">RESULTADO</h1>
+                <h3 id="resCircuitInfo" style="text-align:center; margin-bottom:10px; font-weight:normal; color:#ddd;">-</h3>
+                
+                <div id="resBestLap" class="best-lap-header">Melhor Volta da Corrida: --:--.--- (---)</div>
+
+                <div class="table-container">
+                    <table class="live-table" style="font-size:0.8rem;">
+                        <thead><tr style="background:var(--primary); color:black"><th>POS</th><th>PILOTO</th><th>MV</th><th>TMV</th><th>TT</th><th>DL</th><th>DA</th><th>TV</th><th>VM</th></tr></thead>
+                        <tbody id="resTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="legend">
+                    <span><b>POS:</b> Posição</span><span><b>MV:</b> Volta da Melhor</span><span><b>TMV:</b> Tempo Melhor Volta</span>
+                    <span><b>TT:</b> Tempo Total</span><span><b>DL:</b> Dif. Lider</span><span><b>DA:</b> Dif. Anterior</span>
+                    <span><b>TV:</b> Total Voltas</span><span><b>VM:</b> Velocidade Média</span>
+                </div>
+            </div>
+            <button onclick="generateImage()" style="width:100%; margin-top:15px; background:var(--secondary); color:white; padding:15px; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">📸 Baixar Imagem</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, onSnapshot, where, query } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCXFxcygBteUYgUjuobsTSYVQRIJEgUFjA", authDomain: "cronometragem-kart.firebaseapp.com",
+        projectId: "cronometragem-kart", storageBucket: "cronometragem-kart.firebasestorage.app",
+        messagingSenderId: "494692374520", appId: "1:494692374520:web:d84624be4cc0b3d068280d"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let liveTimerInterval = null;
+
+    function formatTime(ms) {
+        if(!ms || ms === Infinity || ms < 0) return "00:00.000";
+        let m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000), ms_ = Math.floor(ms%1000);
+        return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}.${ms_.toString().padStart(3,'0')}`;
+    }
+
+    function parseTimeStr(str) {
+        if(!str) return Infinity;
+        try {
+            const [min, rest] = str.split(':');
+            const [sec, ms] = rest.split('.');
+            return (parseInt(min) * 60000) + (parseInt(sec) * 1000) + parseInt(ms || 0);
+        } catch(e) { return Infinity; }
+    }
+
+    function calculateStats(drivers, mode, trackLen) {
+        let stats = drivers.map(d => {
+            let bestLapMs = Infinity, bestLapIdx = 0, prevTime = 0;
+            const laps = d.laps || [];
+            laps.forEach((curr, i) => { let lap = curr - prevTime; if(lap < bestLapMs) { bestLapMs = lap; bestLapIdx = i + 1; } prevTime = curr; });
+            if(d.manualBest) bestLapMs = parseTimeStr(d.manualBest);
+            const totalV = d.manualLaps !== null && d.manualLaps !== undefined ? d.manualLaps : laps.length;
+            const totalMs = laps.length > 0 ? laps[laps.length-1] : 0;
+            const avgSpd = (bestLapMs !== Infinity && trackLen > 0) ? (trackLen / (bestLapMs / 1000)) * 3.6 : 0;
+            return { id: d.id, name: d.name, number: d.number, laps: totalV, bestLapIdx, bestLapMs, bestLapDisplay: d.manualBest || formatTime(bestLapMs), totalMs, avgSpd, manualPosition: d.manualPosition };
+        });
+        if(mode === "tomada") stats.sort((a,b) => a.bestLapMs - b.bestLapMs);
+        else stats.sort((a,b) => b.laps - a.laps || a.totalMs - b.totalMs);
+        if (stats.some(s => s.manualPosition)) {
+            const fixed = stats.filter(s => s.manualPosition).sort((a,b) => a.manualPosition - b.manualPosition);
+            let floating = stats.filter(s => !s.manualPosition);
+            let finalOrder = [];
+            for(let i = 0; i < stats.length; i++) {
+                const targetRank = i + 1;
+                const forcedDriver = fixed.find(f => parseInt(f.manualPosition) === targetRank);
+                if (forcedDriver) finalOrder.push(forcedDriver);
+                else if (floating.length > 0) finalOrder.push(floating.shift());
+            }
+            stats = finalOrder;
+        }
+        return stats.map((s, i) => ({ ...s, dl: i === 0 ? "-" : (s.laps < stats[0].laps ? `+${stats[0].laps - s.laps}v` : `+${formatTime(s.totalMs - stats[0].totalMs)}`), da: i === 0 ? "-" : (s.laps < stats[i-1].laps ? `+${stats[i-1].laps - s.laps}v` : `+${formatTime(s.totalMs - stats[i-1].totalMs)}`) }));
+    }
+
+    window.switchTab = (tab) => {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        const map = { 'live': 0, 'results': 1 };
+        document.querySelectorAll('.nav-btn')[map[tab]].classList.add('active');
+    };
+
+    function initLive() {
+        onSnapshot(doc(db, "live", "current"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                updateLiveUI(data);
+            } else {
+                document.getElementById('liveRaceTitle').innerText = "SEM SINAL";
+                document.getElementById('liveTimer').innerText = "00:00.000";
+                document.getElementById('liveTimer').classList.add('timer-stopped');
+            }
+        });
+    }
+
+    function updateLiveUI(data) {
+        document.getElementById('liveRaceTitle').innerText = data.raceName || "AO VIVO";
+        document.getElementById('liveCircuitInfo').innerText = data.circuit ? `${data.circuit.name} (${data.circuit.length}m)` : "";
+        const timerEl = document.getElementById('liveTimer');
+        clearInterval(liveTimerInterval);
+        if (data.isRunning) {
+            timerEl.classList.remove('timer-stopped');
+            liveTimerInterval = setInterval(() => {
+                const currentElapsed = Date.now() - data.startTime;
+                timerEl.innerText = formatTime(currentElapsed);
+            }, 33);
+        } else {
+            timerEl.classList.add('timer-stopped');
+            timerEl.innerText = formatTime(data.elapsedAtPause || 0);
+        }
+        const trackLen = parseFloat(data.circuit?.length || 0);
+        const stats = calculateStats(data.drivers || [], data.mode || "corrida", trackLen);
+        
+        const bestOfAll = [...stats].sort((a,b) => a.bestLapMs - b.bestLapMs)[0];
+        if(bestOfAll && bestOfAll.bestLapMs !== Infinity) {
+            document.getElementById('liveBestLap').innerText = `Melhor Volta da Corrida: ${bestOfAll.bestLapDisplay} (#${bestOfAll.number} ${bestOfAll.name})`;
+        }
+
+        renderTable('liveViewBody', stats);
+    }
+
+    window.loadHistory = async () => {
+        const searchName = document.getElementById('searchResponsible').value.trim();
+        const container = document.getElementById('historyListContainer');
+        if(!searchName) {
+            container.innerHTML = '<p style="text-align:center; color:var(--danger); padding:20px;">Por favor, digite um nome.</p>';
+            return;
+        }
+        container.innerHTML = '<p style="text-align:center; padding:20px;">Buscando...</p>';
+        
+        const qry = query(collection(db, "races"), where("responsible", "==", searchName));
+
+        try {
+            const snap = await getDocs(qry);
+            container.innerHTML = '';
+            if(snap.empty) { 
+                container.innerHTML = '<p style="text-align:center; color:#666; padding:20px;">Nenhuma bateria encontrada para este responsável.</p>'; 
+                return; 
+            }
+            
+            let results = [];
+            snap.forEach(d => results.push(d.data()));
+            results.sort((a, b) => b.date.seconds - a.date.seconds);
+
+            results.forEach(data => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `
+                    <div>
+                        <div style="font-weight:bold; color:var(--primary)">${data.raceName}</div>
+                        <div style="font-size:0.8rem; color:#aaa">${data.date.toDate().toLocaleDateString()} ${data.date.toDate().toLocaleTimeString()} - ${data.circuit?.name || 'Pista N/A'}</div>
+                    </div>
+                    <button style="background:var(--secondary); color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;">VER ➜</button>
+                `;
+                div.onclick = () => showResultDetails(data);
+                container.appendChild(div);
+            });
+        } catch (error) {
+            console.error(error);
+            container.innerHTML = '<p style="text-align:center; color:var(--danger); padding:20px;">Erro técnico na busca. Tente novamente.</p>';
+        }
+    };
+
+    window.showResultDetails = (data) => {
+        document.getElementById('resultsListPanel').style.display = 'none';
+        document.getElementById('resultViewPanel').classList.add('active');
+        document.getElementById('resRaceName').innerText = data.raceName;
+        document.getElementById('resCircuitInfo').innerText = `Pista: ${data.circuit?.name} | Extensão: ${data.circuit?.length}m`;
+        
+        const bestOfAll = [...data.drivers].sort((a,b) => parseTimeStr(a.bestLapDisplay) - parseTimeStr(b.bestLapDisplay))[0];
+        if(bestOfAll) {
+            document.getElementById('resBestLap').innerText = `Melhor Volta da Corrida: ${bestOfAll.bestLapDisplay} (#${bestOfAll.number} ${bestOfAll.name})`;
+        }
+
+        const tb = document.getElementById('resTableBody');
+        tb.innerHTML = '';
+        data.drivers.forEach((d, i) => {
+            tb.innerHTML += `<tr><td>${i+1}º</td><td>#${d.number} ${d.name}</td><td>${d.bestLapIdx}</td><td>${d.bestLapDisplay}</td><td>${formatTime(d.totalMs)}</td><td>${d.dl}</td><td>${d.da}</td><td>${d.laps}</td><td>${d.avgSpd ? d.avgSpd.toFixed(1) : '0.0'}</td></tr>`;
+        });
+    };
+
+    window.closeResultView = () => {
+        document.getElementById('resultsListPanel').style.display = 'block';
+        document.getElementById('resultViewPanel').classList.remove('active');
+    };
+
+    function renderTable(tbodyId, stats) {
+        const tb = document.getElementById(tbodyId); tb.innerHTML = '';
+        stats.forEach((d, i) => {
+            tb.innerHTML += `<tr><td>${i+1}º</td><td style="font-weight:bold;">#${d.number} ${d.name}</td><td>${d.bestLapIdx}</td><td>${d.bestLapDisplay}</td><td>${formatTime(d.totalMs)}</td><td>${d.dl}</td><td>${d.da}</td><td>${d.laps}</td><td>${d.avgSpd.toFixed(1)}</td></tr>`;
+        });
+    }
+
+    window.generateImage = async () => {
+        const el = document.getElementById('shareableResultClone');
+        const canvas = await html2canvas(el, { backgroundColor: "#121212", scale: 2 });
+        const link = document.createElement('a'); link.download = 'resultado.png'; link.href = canvas.toDataURL(); link.click();
+    };
+
+    initLive();
+</script>
+</body>
+</html>
