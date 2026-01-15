@@ -17,12 +17,51 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Exo 2', sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        .sidebar { width: 80px; background-color: #000; display: flex; flex-direction: column; align-items: center; padding-top: 20px; border-right: 1px solid #333; transition: width 0.3s; z-index: 10; flex-shrink: 0; }
-        .sidebar:hover { width: 200px; }
+        /* ALTERAÇÃO: Sidebar Desktop agora é fixa e oculta */
+        .sidebar { 
+            width: 250px; 
+            background-color: rgba(0,0,0,0.95); 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 60px; /* Espaço para não cobrir o botão fechar se necessário */
+            border-right: 1px solid var(--primary); 
+            transition: left 0.3s ease; 
+            z-index: 1000; 
+            flex-shrink: 0;
+            position: fixed;
+            left: -260px; /* Escondido por padrão */
+            top: 0;
+            height: 100vh;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+        }
+        
+        /* Classe ativada via JS */
+        .sidebar.active { left: 0; }
+
+        /* Botão Hamburger (3 traços) */
+        .menu-toggle-btn {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            z-index: 2000;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+            padding: 0;
+            line-height: 1;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+        }
+        .menu-toggle-btn:hover { color: var(--primary); }
+
         .nav-btn { background: none; border: none; color: var(--text-muted); width: 100%; padding: 15px; text-align: left; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; gap: 15px; transition: 0.2s; overflow: hidden; white-space: nowrap; }
         .nav-btn:hover, .nav-btn.active { color: var(--primary); background-color: rgba(255, 23, 68, 0.1); border-left: 3px solid var(--primary); }
         
-        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
+        /* Main Content ajustado para ocupar tudo */
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; margin-left: 0; width: 100%; }
         .tab-content { display: none; padding-bottom: 80px; } .tab-content.active { display: block; }
         
         .glass-panel { background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
@@ -53,8 +92,17 @@
 
         @media (max-width: 768px) {
             body { flex-direction: column; height: 100vh; }
-            .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 0; border-right: none; border-bottom: 1px solid #333; }
+            /* Restaurando sidebar original para mobile */
+            .sidebar { 
+                width: 100%; height: auto; flex-direction: row; justify-content: space-around; 
+                padding: 10px 0; border-right: none; border-bottom: 1px solid #333; 
+                position: relative; left: 0; top: auto; background-color: #000;
+                box-shadow: none;
+            }
             .sidebar:hover { width: 100%; }
+            /* Esconder o botão de menu no celular pois o menu já fica visível */
+            .menu-toggle-btn { display: none; }
+            
             .nav-btn { width: auto; padding: 8px 15px; border-left: none; border-bottom: 3px solid transparent; font-size: 0.9rem; flex-direction: column; gap: 5px; }
             .nav-btn.active { background: transparent; border-left: none; border-bottom: 3px solid var(--primary); color: var(--primary); }
             #liveTimer { font-size: 18vw; margin: 10px 0; }
@@ -64,7 +112,9 @@
 </head>
 <body>
 
-<nav class="sidebar">
+<button class="menu-toggle-btn" onclick="toggleMenu()">☰</button>
+
+<nav class="sidebar" id="sidebarMenu">
     <button class="nav-btn active" onclick="switchTab('live')"><span>📺 AO VIVO</span></button>
     <button class="nav-btn" onclick="switchTab('results')"><span>🏆 RESULTADOS</span></button>
 </nav>
@@ -149,6 +199,11 @@
 
     let liveTimerInterval = null;
 
+    // Função para alternar o Menu (Sidebar)
+    window.toggleMenu = () => {
+        document.getElementById('sidebarMenu').classList.toggle('active');
+    };
+
     function formatTime(ms) {
         if(!ms || ms === Infinity || ms < 0) return "00:00.000";
         let m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000), ms_ = Math.floor(ms%1000);
@@ -191,7 +246,6 @@
             stats = finalOrder;
         }
 
-        // ALTERAÇÃO AQUI: Retorna sempre a diferença de tempo formatada, ignorando contagem de voltas
         return stats.map((s, i) => ({ 
             ...s, 
             dl: i === 0 ? "-" : `+${formatTime(Math.abs(s.totalMs - stats[0].totalMs))}`, 
@@ -205,6 +259,8 @@
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         const map = { 'live': 0, 'results': 1 };
         document.querySelectorAll('.nav-btn')[map[tab]].classList.add('active');
+        // Fecha o menu automaticamente no mobile/desktop ao clicar
+        document.getElementById('sidebarMenu').classList.remove('active');
     };
 
     function initLive() {
@@ -267,11 +323,7 @@
         const tb = document.getElementById('resTableBody');
         tb.innerHTML = '';
         
-        // Recalcular para garantir que a formatação DL/DA venha correta também no histórico
         const trackLen = parseFloat(data.circuit?.length || 0);
-        // Precisamos reconstruir a lógica de stats aqui para o histórico se quisermos que aplique a nova regra de DL/DA
-        // Como 'data.drivers' já vem salvo, ele pode ter o DL/DA antigo.
-        // O ideal é recalcular.
         const stats = calculateStats(data.drivers, data.mode || "corrida", trackLen);
 
         stats.forEach((d, i) => {
