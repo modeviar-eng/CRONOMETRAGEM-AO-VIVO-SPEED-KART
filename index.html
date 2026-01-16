@@ -17,13 +17,54 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Exo 2', sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        .sidebar { width: 80px; background-color: #000; display: flex; flex-direction: column; align-items: center; padding-top: 20px; border-right: 1px solid #333; transition: width 0.3s; z-index: 10; flex-shrink: 0; }
-        .sidebar:hover { width: 200px; }
+        /* Menu Hamburguer */
+        .menu-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #333;
+        }
+        .menu-toggle div {
+            width: 25px;
+            height: 3px;
+            background-color: var(--text-main);
+            transition: 0.3s;
+        }
+
+        /* Sidebar Ajustada */
+        .sidebar { 
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0; /* Começa escondida */
+            background-color: #000; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 80px; 
+            border-right: 1px solid #333; 
+            transition: width 0.3s; 
+            z-index: 1000; 
+            flex-shrink: 0;
+            overflow: hidden; /* Garante que o texto suma */
+        }
+        .sidebar.open { width: 200px; }
+        
         .nav-btn { background: none; border: none; color: var(--text-muted); width: 100%; padding: 15px; text-align: left; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; gap: 15px; transition: 0.2s; overflow: hidden; white-space: nowrap; }
         .nav-btn:hover, .nav-btn.active { color: var(--primary); background-color: rgba(255, 23, 68, 0.1); border-left: 3px solid var(--primary); }
         
-        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
-        .tab-content { display: none; padding-bottom: 80px; } .tab-content.active { display: block; }
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; position: relative; margin-left: 0; transition: margin-left 0.3s; }
+        
+        .tab-content { display: none; padding-bottom: 80px; padding-top: 40px; } .tab-content.active { display: block; }
         
         .glass-panel { background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
         
@@ -52,19 +93,22 @@
         button.btn-search { background: var(--primary); color: white; font-weight: bold; cursor: pointer; border: none; }
 
         @media (max-width: 768px) {
-            body { flex-direction: column; height: 100vh; }
-            .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 0; border-right: none; border-bottom: 1px solid #333; }
-            .sidebar:hover { width: 100%; }
-            .nav-btn { width: auto; padding: 8px 15px; border-left: none; border-bottom: 3px solid transparent; font-size: 0.9rem; flex-direction: column; gap: 5px; }
-            .nav-btn.active { background: transparent; border-left: none; border-bottom: 3px solid var(--primary); color: var(--primary); }
+            .sidebar.open { width: 100%; }
             #liveTimer { font-size: 18vw; margin: 10px 0; }
             .legend { grid-template-columns: repeat(3, 1fr); }
+            .tab-content { padding-top: 60px; }
         }
     </style>
 </head>
 <body>
 
-<nav class="sidebar">
+<div class="menu-toggle" onclick="toggleMenu()">
+    <div></div>
+    <div></div>
+    <div></div>
+</div>
+
+<nav class="sidebar" id="mainSidebar">
     <button class="nav-btn active" onclick="switchTab('live')"><span>📺 AO VIVO</span></button>
     <button class="nav-btn" onclick="switchTab('results')"><span>🏆 RESULTADOS</span></button>
 </nav>
@@ -149,6 +193,11 @@
 
     let liveTimerInterval = null;
 
+    // Função para abrir/fechar o menu
+    window.toggleMenu = () => {
+        document.getElementById('mainSidebar').classList.toggle('open');
+    };
+
     function formatTime(ms) {
         if(!ms || ms === Infinity || ms < 0) return "00:00.000";
         let m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000), ms_ = Math.floor(ms%1000);
@@ -191,7 +240,6 @@
             stats = finalOrder;
         }
 
-        // ALTERAÇÃO AQUI: Retorna sempre a diferença de tempo formatada, ignorando contagem de voltas
         return stats.map((s, i) => ({ 
             ...s, 
             dl: i === 0 ? "-" : `+${formatTime(Math.abs(s.totalMs - stats[0].totalMs))}`, 
@@ -205,6 +253,8 @@
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         const map = { 'live': 0, 'results': 1 };
         document.querySelectorAll('.nav-btn')[map[tab]].classList.add('active');
+        // Fecha o menu ao selecionar
+        document.getElementById('mainSidebar').classList.remove('open');
     };
 
     function initLive() {
@@ -266,12 +316,7 @@
         document.getElementById('resCircuitInfo').innerText = `Pista: ${data.circuit?.name} | Extensão: ${data.circuit?.length}m`;
         const tb = document.getElementById('resTableBody');
         tb.innerHTML = '';
-        
-        // Recalcular para garantir que a formatação DL/DA venha correta também no histórico
         const trackLen = parseFloat(data.circuit?.length || 0);
-        // Precisamos reconstruir a lógica de stats aqui para o histórico se quisermos que aplique a nova regra de DL/DA
-        // Como 'data.drivers' já vem salvo, ele pode ter o DL/DA antigo.
-        // O ideal é recalcular.
         const stats = calculateStats(data.drivers, data.mode || "corrida", trackLen);
 
         stats.forEach((d, i) => {
